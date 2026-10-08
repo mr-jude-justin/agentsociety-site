@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Society — Rehearse decisions in a simulated society</title>
+<meta name="description" content="Agent Society builds an AI-native decision layer: simulate how customers, investors, markets and regulators respond before you commit real money.">
+<meta property="og:title" content="Agent Society">
+<meta property="og:description" content="A company that forecasts the future. Simulate market reactions before you act.">
+<meta property="og:url" content="https://agentsociety.dev">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%230b0d10'/><circle cx='10' cy='11' r='3' fill='%23d4ff3a'/><circle cx='22' cy='9' r='2.4' fill='%23e8e6e1'/><circle cx='16' cy='22' r='3' fill='%23e8e6e1'/><path d='M10 11L22 9L16 22Z' fill='none' stroke='%23e8e6e1' stroke-width='1'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0d10;
+    --bg-2: #111419;
+    --line: #23272e;
+    --text: #e8e6e1;
+    --muted: #8b8f96;
+    --accent: #d4ff3a;
+    --serif: "Instrument Serif", Georgia, serif;
+    --sans: "Inter", system-ui, -apple-system, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+    --max: 1120px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 17px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; }
+  .wrap { max-width: var(--max); margin: 0 auto; padding: 0 28px; }
+  .mono { font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+  /* Nav */
+  nav {
+    position: fixed; inset: 0 0 auto 0; z-index: 10;
+    background: rgba(11,13,16,.72); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--line);
+  }
+  nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+  .brand { font-family: var(--mono); font-weight: 500; font-size: 14px; letter-spacing: .14em; text-decoration: none; display: flex; align-items: center; gap: 10px; }
+  .brand i { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; display: inline-block; }
+  nav ul { display: flex; gap: 28px; list-style: none; }
+  nav ul a { font-size: 14px; color: var(--muted); text-decoration: none; transition: color .15s; }
+  nav ul a:hover { color: var(--text); }
+
+  /* Hero */
+  .hero { position: relative; min-height: 100vh; display: flex; align-items: center; overflow: hidden; border-bottom: 1px solid var(--line); }
+  #sim { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .55; }
+  .hero::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at 30% 50%, rgba(11,13,16,.9) 0%, rgba(11,13,16,.4) 55%, rgba(11,13,16,.1) 100%); pointer-events: none; }
+  .hero .wrap { position: relative; z-index: 2; width: 100%; padding-top: 60px; }
+  .hero h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(52px, 8.4vw, 116px); line-height: .98; letter-spacing: -.02em; max-width: 11ch; margin: 22px 0 28px; }
+  .hero h1 em { color: var(--accent); }
+  .hero p.lede { font-size: clamp(18px, 1.6vw, 21px); color: #bfc2c7; max-width: 34em; }
+  .cta { display: inline-flex; align-items: center; gap: 10px; margin-top: 40px; padding: 14px 22px; background: var(--accent); color: #0b0d10; font-weight: 600; font-size: 15px; text-decoration: none; border-radius: 2px; transition: transform .15s; }
+  .cta:hover { transform: translateY(-2px); }
+  .cta.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); margin-left: 12px; }
+  .hud { position: absolute; z-index: 2; right: 28px; bottom: 28px; border: 1px solid var(--line); background: rgba(11,13,16,.8); padding: 14px 18px; font-family: var(--mono); font-size: 11px; line-height: 1.9; color: var(--muted); min-width: 250px; }
+  .hud b { color: var(--text); font-weight: 500; }
+  .hud .live { color: var(--accent); }
+  .hud .live::before { content: "●"; margin-right: 6px; animation: blink 1.4s infinite; }
+  @keyframes blink { 50% { opacity: .2; } }
+
+  /* Sections */
+  section { padding: 128px 0; border-bottom: 1px solid var(--line); }
+  .head { display: grid; grid-template-columns: 200px 1fr; gap: 40px; margin-bottom: 64px; }
+  h2 { font-family: var(--serif); font-weight: 400; font-size: clamp(38px, 4.6vw, 60px); line-height: 1.05; letter-spacing: -.015em; max-width: 18ch; }
+  h2 em { color: var(--accent); font-style: italic; }
+  .head p { color: var(--muted); max-width: 36em; margin-top: 20px; }
+
+  /* Problem */
+  .methods { display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+  .methods div { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 28px 22px 34px; }
+  .methods span { display: block; margin-bottom: 40px; }
+  .methods h3 { font-weight: 500; font-size: 18px; }
+  .verdict { display: flex; gap: 14px; margin-top: 36px; align-items: center; flex-wrap: wrap; }
+  .verdict .pill { border: 1px solid var(--line); padding: 8px 16px; font-family: var(--mono); font-size: 13px; }
+
+  /* Compare */
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .card { border: 1px solid var(--line); background: var(--bg-2); padding: 36px; }
+  .card.ours { border-color: rgba(212,255,58,.4); }
+  .card h3 { font-weight: 500; font-size: 20px; margin: 10px 0 28px; }
+  .flow { list-style: none; counter-reset: s; }
+  .flow li { counter-increment: s; display: flex; gap: 16px; padding: 14px 0; border-top: 1px solid var(--line); }
+  .flow li::before { content: "0" counter(s); font-family: var(--mono); font-size: 12px; color: var(--muted); padding-top: 4px; }
+  .card.ours .flow li::before { color: var(--accent); }
+  .flow li.bad { color: #e89b8b; }
+  .tagline { margin-top: 44px; font-family: var(--serif); font-size: clamp(24px, 2.6vw, 32px); line-height: 1.25; max-width: 30ch; }
+
+  /* Markets */
+  .markets { display: grid; grid-template-columns: 1.1fr 1fr; gap: 56px; align-items: start; }
+  .first { border-left: 2px solid var(--accent); padding: 4px 0 4px 28px; }
+  .first h3 { font-family: var(--serif); font-weight: 400; font-size: 36px; line-height: 1.1; margin: 12px 0 16px; }
+  .first p { color: #bfc2c7; }
+  .path { margin-top: 28px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; font-size: 14px; }
+  .path span { border: 1px solid var(--line); padding: 6px 12px; }
+  .path b { color: var(--muted); font-weight: 400; }
+  .tags { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tags span { font-size: 14px; color: var(--muted); border: 1px solid var(--line); padding: 6px 12px; border-radius: 100px; }
+  .tags span.on { color: #0b0d10; background: var(--accent); border-color: var(--accent); }
+
+  /* Why now */
+  .equation { display: grid; grid-template-columns: 1fr auto 1fr auto 1.2fr; gap: 24px; align-items: stretch; }
+  .eq { border: 1px solid var(--line); padding: 32px; background: var(--bg-2); }
+  .eq h3 { font-weight: 500; font-size: 20px; margin: 10px 0 12px; }
+  .eq p { color: var(--muted); font-size: 15px; }
+  .eq.result { border-color: rgba(212,255,58,.4); }
+  .eq.result h3 { color: var(--accent); }
+  .op { align-self: center; font-family: var(--serif); font-size: 44px; color: var(--muted); }
+
+  /* Team */
+  .team { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid var(--line); }
+  .team > div { padding: 40px; }
+  .team > div + div { border-left: 1px solid var(--line); }
+  .team h3 { font-family: var(--serif); font-weight: 400; font-size: 34px; margin: 10px 0 12px; }
+  .team p { color: #bfc2c7; }
+
+  /* Contact */
+  .contact { text-align: left; }
+  .contact h2 { max-width: 16ch; font-size: clamp(44px, 6vw, 84px); }
+  .contact p { color: #bfc2c7; max-width: 34em; margin-top: 24px; }
+
+  footer { padding: 36px 0; }
+  footer .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+
+  /* Reveal */
+  .reveal { opacity: 0; transform: translateY(18px); transition: opacity .7s ease, transform .7s ease; }
+  .reveal.in { opacity: 1; transform: none; }
+
+  @media (max-width: 900px) {
+    nav ul { display: none; }
+    .head { grid-template-columns: 1fr; gap: 12px; }
+    .methods { grid-template-columns: 1fr 1fr; }
+    .methods span { margin-bottom: 16px; }
+    .compare, .markets, .team { grid-template-columns: 1fr; }
+    .team > div + div { border-left: 0; border-top: 1px solid var(--line); }
+    .equation { grid-template-columns: 1fr; }
+    .op { justify-self: center; line-height: 1; }
+    .hud { display: none; }
+    section { padding: 88px 0; }
+    .cta.ghost { margin-left: 0; margin-top: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .reveal { opacity: 1; transform: none; transition: none; }
+    html { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a href="#" class="brand"><i></i>AGENT SOCIETY</a>
+    <ul>
+      <li><a href="#problem">Problem</a></li>
+      <li><a href="#approach">Approach</a></li>
+      <li><a href="#markets">Markets</a></li>
+      <li><a href="#team">Team</a></li>
+      <li><a href="#contact">Contact</a></li>
+    </ul>
+  </div>
+</nav>
+
+<header class="hero">
+  <canvas id="sim" aria-hidden="true"></canvas>
+  <div class="wrap">
+    <div class="mono">UCLA × BIT · Economics + Computer Science</div>
+    <h1>A company that <em>forecasts</em> the future.</h1>
+    <p class="lede">Agent Society simulates how customers, investors, markets and regulators react to your decisions, so you can rehearse in a simulated society before you put real money on the line.</p>
+    <a href="#contact" class="cta">Request a pilot →</a><a href="#approach" class="cta ghost">How it works</a>
+  </div>
+  <div class="hud" aria-hidden="true">
+    <div><b>SIM.RUN / 04829</b> &nbsp;<span class="live">LIVE</span></div>
+    <div>TICK &nbsp;<b id="tick">001,240</b> / 002,000</div>
+    <div>ACTIVE AGENTS &nbsp;<b id="agents">1,120</b></div>
+    <div>SCENARIO &nbsp;<b>PRICING SHOCK / +12%</b></div>
+    <div>CONVERGED &nbsp;<b>T+8.4H</b></div>
+  </div>
+</header>
+
+<main>
+  <section id="problem">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="mono">01 · The status quo</div>
+        <div>
+          <h2>Understanding a market still means asking people, <em>one study at a time.</em></h2>
+          <p>Today, companies that want to understand their markets and customers rely on a handful of methods. By the time the report lands, the decision has often already been made.</p>
+        </div>
+      </div>
+      <div class="methods reveal">
+        <div><span class="mono">01</span><h3>Surveys</h3></div>
+        <div><span class="mono">02</span><h3>In-depth interviews</h3></div>
+        <div><span class="mono">03</span><h3>Focus groups</h3></div>
+        <div><span class="mono">04</span><h3>Concept pre-tests</h3></div>
+        <div><span class="mono">05</span><h3>Small-scale pilots</h3></div>
+      </div>
+      <div class="verdict reveal">
+        <span class="mono">What they share →</span>
+        <span class="pill">Slow</span><span class="pill">Expensive</span><span class="pill">Few iterations</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="approach">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="mono">02 · AI-native decision layer</div>
+        <div>
+          <h2>Find the deviation <em>before</em> you execute, not after.</h2>
+          <p>We add an AI-native decision layer to financial institutions, embedding multi-agent simulation directly into the decision chain.</p>
+        </div>
+      </div>
+      <div class="compare">
+        <div class="card reveal">
+          <div class="mono">Traditional</div>
+          <h3>Research, then hope</h3>
+          <ol class="flow">
+            <li>Collect research data</li>
+            <li>Manual analysis</li>
+            <li>Publish a report</li>
+            <li class="bad">Discover the deviation only after execution</li>
+          </ol>
+        </div>
+        <div class="card ours reveal">
+          <div class="mono" style="color:var(--accent)">Agent Society</div>
+          <h3>Simulate, compare, then decide</h3>
+          <ol class="flow">
+            <li>Input your data and assumptions</li>
+            <li>Simulate customer, investor, market and policy reactions</li>
+            <li>Compare multiple scenarios side by side</li>
+            <li>Get decision recommendations</li>
+          </ol>
+        </div>
+      </div>
+      <p class="tagline reveal">Trial and error in the real world is expensive. Validate the decision in a simulated society first, then commit real capital.</p>
+    </div>
+  </section>
+
+  <section id="markets">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="mono">03 · Who buys first</div>
+        <div>
+          <h2>Starting where judgment <em>is</em> the product.</h2>
+        </div>
+      </div>
+      <div class="markets">
+        <div class="first reveal">
+          <div class="mono">Beachhead</div>
+          <h3>Financial consulting firms</h3>
+          <p>They make judgment calls for their clients every day, so they need a decision layer that can stress-test those judgments more than anyone.</p>
+          <div class="path">
+            <span>Financial consulting</span><b>→</b><span>Banking</span><b>→</b><span>Asset management</span><b>→</b><span>Insurance</span>
+          </div>
+        </div>
+        <div class="reveal">
+          <div class="mono" style="margin-bottom:18px">Then every market that deals with consumers</div>
+          <div class="tags">
+            <span class="on">Financial consulting</span><span>Consulting</span><span>Internet platforms</span><span>Automotive finance</span><span>Insurance</span><span>Pharma &amp; health</span><span>Education</span><span>Consumer &amp; retail</span><span>Travel &amp; hospitality</span><span>Film &amp; entertainment</span><span>Real estate</span><span>Restaurant chains</span><span>Public services</span><span>Policy research</span><span>Advertising agencies</span><span>Gaming</span><span>Luxury</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="why-now">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="mono">04 · Why now</div>
+        <div>
+          <h2>Two curves just <em>crossed.</em></h2>
+        </div>
+      </div>
+      <div class="equation reveal">
+        <div class="eq">
+          <div class="mono">Technology inflection</div>
+          <h3>Models are capable</h3>
+          <p>Large language models finally make multi-role, continuously interacting agent simulations usable.</p>
+        </div>
+        <div class="op">×</div>
+        <div class="eq">
+          <div class="mono">Market inflection</div>
+          <h3>Budgets are tight</h3>
+          <p>Tighter budgets push financial institutions toward lower-cost ways to validate decisions.</p>
+        </div>
+        <div class="op">=</div>
+        <div class="eq result">
+          <div class="mono">The window</div>
+          <h3>An AI-native decision layer</h3>
+          <p>Social simulation is moving from a rough sketch toward something you can actually navigate by.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="team">
+    <div class="wrap">
+      <div class="head reveal">
+        <div class="mono">05 · Why us</div>
+        <div>
+          <h2>Computer science and social science, <em>on one team.</em></h2>
+          <p>We turn social-science methods into simulation systems that can be run and validated.</p>
+        </div>
+      </div>
+      <div class="team reveal">
+        <div>
+          <div class="mono">Beijing Institute of Technology</div>
+          <h3>Systems</h3>
+          <p>A computer science background: we own the models, the systems and the engineering.</p>
+        </div>
+        <div>
+          <div class="mono">UCLA</div>
+          <h3>Behavior</h3>
+          <p>A social-science lens: we define the behavioral questions, the social mechanisms and the experimental design.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="contact" class="contact">
+    <div class="wrap reveal">
+      <div class="mono">06 · Get in touch</div>
+      <h2 style="margin-top:20px">Run your next decision through a <em>simulated society.</em></h2>
+      <p>We are working with a small number of early partners in financial consulting. Tell us about a decision you are facing.</p>
+      <a href="mailto:justinzhuang@agentsociety.dev" class="cta">justinzhuang@agentsociety.dev →</a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span class="mono">© <span id="y">2026</span> Agent Society</span>
+    <span class="mono">agentsociety.dev</span>
+  </div>
+</footer>
+
+<script>
+  document.getElementById("y").textContent = new Date().getFullYear();
+
+  // Scroll reveal
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+  }), { threshold: 0.12 });
+  document.querySelectorAll(".reveal").forEach(el => io.observe(el));
+
+  // Hero agent simulation: drifting agents, links between neighbors, an opinion that spreads.
+  (function () {
+    const c = document.getElementById("sim"), ctx = c.getContext("2d");
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let W, H, agents = [], dpr = Math.min(devicePixelRatio || 1, 2);
+    const N = innerWidth < 700 ? 70 : 150, R = 110;
+
+    function resize() {
+      W = c.clientWidth; H = c.clientHeight;
+      c.width = W * dpr; c.height = H * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    function init() {
+      agents = Array.from({ length: N }, () => ({
+        x: Math.random() * W, y: Math.random() * H,
+        vx: (Math.random() - .5) * .35, vy: (Math.random() - .5) * .35,
+        s: Math.random() < .04 ? 1 : 0
+      }));
+    }
+    function step() {
+      for (const a of agents) {
+        a.x += a.vx; a.y += a.vy;
+        if (a.x < 0 || a.x > W) a.vx *= -1;
+        if (a.y < 0 || a.y > H) a.vy *= -1;
+      }
+      // Opinion spreads to neighbors with small probability, and slowly decays.
+      for (const a of agents) {
+        if (a.s > .6) for (const b of agents) {
+          if (b.s < .1 && Math.hypot(a.x - b.x, a.y - b.y) < R * .7 && Math.random() < .004) b.s = 1;
+        }
+        a.s = Math.max(0, a.s - .0012);
+      }
+      if (Math.random() < .02) agents[(Math.random() * N) | 0].s = 1;
+    }
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+      for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) {
+        const a = agents[i], b = agents[j], d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (d < R) {
+          const hot = (a.s + b.s) / 2;
+          ctx.strokeStyle = hot > .3 ? `rgba(212,255,58,${(1 - d / R) * .35 * hot})` : `rgba(232,230,225,${(1 - d / R) * .12})`;
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        }
+      }
+      for (const a of agents) {
+        ctx.fillStyle = a.s > .1 ? `rgba(212,255,58,${.4 + a.s * .6})` : "rgba(232,230,225,.55)";
+        ctx.beginPath(); ctx.arc(a.x, a.y, a.s > .1 ? 2.6 : 1.8, 0, 7); ctx.fill();
+      }
+    }
+    let frame = 0, tick = 1240;
+    const tickEl = document.getElementById("tick");
+    function loop() {
+      step(); draw();
+      if (++frame % 6 === 0) {
+        tick = tick >= 2000 ? 1 : tick + 1;
+        tickEl.textContent = String(tick).padStart(6, "0").replace(/(\d{3})(\d{3})/, "$1,$2");
+      }
+      requestAnimationFrame(loop);
+    }
+    resize(); init();
+    addEventListener("resize", () => { resize(); });
+    if (reduce) draw(); else loop();
+  })();
+</script>
+</body>
+</html>
